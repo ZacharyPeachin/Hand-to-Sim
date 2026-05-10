@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 """
-Adafruit Servo Bonnet Testing Script
-Tests Adafruit P154 Continuous Rotation Servos via Servo Bonnet P3416
-Supports 16 servo channels with continuous rotation control.
-
-IMPORTANT: External 5V Power Supply Required!
-- Connect 5V and GND from external power supply to Servo Bonnet
-- This is REQUIRED for proper servo operation
-- USB power alone is insufficient
+Directional Servo Controller Test
+Tests single continuous rotation servo on Channel 0
+Rotates forward 5s, backward 5s, then stops
 """
 
 import serial
@@ -15,20 +10,11 @@ import time
 import sys
 
 
-class ServoTester:
-    """Test servo motors (continuous rotation) connected via Adafruit Servo Bonnet."""
+class DirectionalServoTester:
+    """Test directional servo on channel 0."""
     
     def __init__(self, port=None, baud=9600, timeout=2):
-        """
-        Initialize the servo tester.
-        
-        Args:
-            port: Serial port (e.g., '/dev/ttyUSB0')
-            baud: Baud rate (default: 9600)
-            timeout: Serial timeout in seconds
-            
-        Note: Ensure external 5V power supply is connected to Servo Bonnet!
-        """
+        """Initialize the servo tester."""
         self.port = port
         self.baud = baud
         self.timeout = timeout
@@ -45,7 +31,7 @@ class ServoTester:
         try:
             self.ser = serial.Serial(self.port, self.baud, timeout=self.timeout)
             time.sleep(2)  # Wait for Arduino to initialize
-            print(f"Connected to servo controller on {self.port} at {self.baud} baud")
+            print(f"Connected to servo controller on {self.port} at {self.baud} baud\n")
             return True
         except Exception as e:
             print(f"Connection error: {e}")
@@ -70,188 +56,167 @@ class ServoTester:
                 continue
         return None
     
-    def send_command(self, cmd):
+    def send_command(self, cmd, debug=False):
         """Send a command to the Arduino."""
         if not self.ser or not self.ser.is_open:
             print("Not connected")
             return None
         
         try:
-            self.ser.write((cmd + '\n').encode('utf-8'))
-            time.sleep(0.3)
+            # Clear input buffer before sending
+            self.ser.reset_input_buffer()
             
+            # Send command
+            command_bytes = (cmd + '\n').encode('utf-8')
+            bytes_written = self.ser.write(command_bytes)
+            
+            if debug:
+                print(f"  → Sent {bytes_written} bytes: '{cmd}'")
+            
+            # Wait for response
+            time.sleep(0.5)
+            
+            # Read all available data
             response = ""
+            bytes_read = 0
             while self.ser.in_waiting > 0:
-                response += self.ser.readline().decode('utf-8', errors='ignore')
+                line = self.ser.readline().decode('utf-8', errors='ignore')
+                response += line
+                bytes_read += len(line)
+            
+            if debug:
+                if bytes_read > 0:
+                    print(f"  ← Received {bytes_read} bytes: '{response.strip()}'")
+                else:
+                    print(f"  ← No response received")
             
             return response.strip()
         except Exception as e:
             print(f"Command error: {e}")
             return None
     
-    def set_servo_speed(self, channel, speed):
-        """
-        Set continuous rotation servo to a specific speed.
-        
-        Args:
-            channel: Servo channel (0-15)
-            speed: Speed in range -255 (full reverse) to 255 (full forward)
-                  0 = stop
-        """
-        if channel < 0 or channel > 15:
-            print(f"Invalid channel: {channel}. Must be between 0-15.")
-            return False
-        
-        if speed < -255 or speed > 255:
-            print(f"Invalid speed: {speed}. Must be between -255 and 255.")
-            return False
-        
-        cmd = f"servo_speed {channel} {speed}"
-        response = self.send_command(cmd)
+    def forward(self):
+        """Rotate servo forward."""
+        response = self.send_command("forward", debug=True)
         if response:
-            direction = "FORWARD" if speed > 0 else "BACKWARD" if speed < 0 else "STOP"
-            print(f"Channel {channel} speed set to {speed} ({direction}): {response}")
+            print(f"  ✓ {response}")
+        else:
+            print(f"  ✗ No response from Arduino")
         return response
     
-    def stop_servo(self, channel):
-        """
-        Stop a servo.
-        
-        Args:
-            channel: Servo channel (0-15)
-        """
-        cmd = f"servo_stop {channel}"
-        response = self.send_command(cmd)
+    def backward(self):
+        """Rotate servo backward."""
+        response = self.send_command("backward", debug=True)
         if response:
-            print(f"Channel {channel} stopped: {response}")
+            print(f"  ✓ {response}")
+        else:
+            print(f"  ✗ No response from Arduino")
         return response
     
-    def stop_all_servos(self):
-        """Stop all servos on the bonnet."""
-        cmd = "servo_stop_all"
-        response = self.send_command(cmd)
+    def stop(self):
+        """Stop servo."""
+        response = self.send_command("stop", debug=True)
         if response:
-            print(f"All servos stopped: {response}")
+            print(f"  ✓ {response}")
+        else:
+            print(f"  ✗ No response from Arduino")
         return response
     
-    def test_servo_speed_range(self, channel, hold_time=1):
+    def test_directions(self, forward_time=5, backward_time=5):
         """
-        Test servo at various speeds.
+        Test servo in both directions.
         
         Args:
-            channel: Servo channel (0-15)
-            hold_time: Time to hold at each speed (seconds)
+            forward_time: Duration for forward rotation (seconds)
+            backward_time: Duration for backward rotation (seconds)
         """
-        print(f"\nTesting servo speed range on channel {channel}...")
-        print(f"Hold time at each speed: {hold_time}s\n")
+        print("=" * 50)
+        print("DIRECTIONAL SERVO TEST")
+        print("=" * 50)
         
-        test_speeds = [255, 128, 64, 0, -64, -128, -255]
+        # Forward
+        print(f"\nRotating FORWARD for {forward_time}s...")
+        self.forward()
+        time.sleep(forward_time)
         
-        for speed in test_speeds:
-            print(f"Setting speed to {speed}...")
-            self.set_servo_speed(channel, speed)
-            time.sleep(hold_time)
+        # Backward
+        print(f"\nRotating BACKWARD for {backward_time}s...")
+        self.backward()
+        time.sleep(backward_time)
         
-        print("Speed range test complete!\n")
-    
-    def test_continuous_rotation(self, channel, duration=2):
-        """
-        Test continuous rotation in both directions.
+        # Stop
+        print(f"\nStopping servo...")
+        self.stop()
         
-        Args:
-            channel: Servo channel (0-15)
-            duration: Duration for each direction (seconds)
-        """
-        print(f"\nTesting continuous rotation on channel {channel}...")
-        
-        print(f"Rotating FORWARD at full speed for {duration}s...")
-        self.set_servo_speed(channel, 255)
-        time.sleep(duration)
-        
-        print(f"Rotating BACKWARD at full speed for {duration}s...")
-        self.set_servo_speed(channel, -255)
-        time.sleep(duration)
-        
-        print("Stopping...")
-        self.set_servo_speed(channel, 0)
-        time.sleep(0.5)
-        
-        print("Continuous rotation test complete!\n")
-    
-    def test_multiple_channels(self, channels, duration=1):
-        """
-        Test multiple servo channels.
-        
-        Args:
-            channels: List of channel numbers (0-15)
-            duration: Duration for each channel test (seconds)
-        """
-        print(f"\nTesting multiple channels: {channels}\n")
-        
-        for channel in channels:
-            print(f"--- Testing channel {channel} ---")
-            self.test_servo_speed_range(channel, hold_time=0.5)
-        
-        print("All channel tests complete!\n")
-    
-    def test_speed_ramp(self, channel, min_speed=-255, max_speed=255, step=50, duration=0.2):
-        """
-        Test smooth speed ramp.
-        
-        Args:
-            channel: Servo channel (0-15)
-            min_speed: Minimum speed to test
-            max_speed: Maximum speed to test
-            step: Speed increment
-            duration: Duration at each speed (seconds)
-        """
-        print(f"\nSpeed ramp test on channel {channel}...")
-        print(f"Range: {min_speed} to {max_speed}, Step: {step}\n")
-        
-        current_speed = min_speed
-        while current_speed <= max_speed:
-            self.set_servo_speed(channel, current_speed)
-            time.sleep(duration)
-            current_speed += step
-        
-        print("Stopping...")
-        self.set_servo_speed(channel, 0)
-        print("Speed ramp test complete!\n")
+        print("\n" + "=" * 50)
+        print("TEST COMPLETE")
+        print("=" * 50)
 
 
 def main():
     """Main test function."""
-    print("\n" + "="*50)
-    print("Adafruit Servo Bonnet Testing Suite")
-    print("="*50)
-    print("\nIMPORTANT: External 5V power supply required!")
-    print("Connect GND from power supply to Arduino GND")
-    print("="*50 + "\n")
-    
     port = sys.argv[1] if len(sys.argv) > 1 else None
-    tester = ServoTester(port)
+    tester = DirectionalServoTester(port)
     
     if not tester.connect():
         return
     
     try:
-        # Example: Test single servo channel
-        print("=== Single Channel Speed Range Test ===")
-        tester.test_servo_speed_range(channel=0, hold_time=0.5)
+        # Read initial messages from Arduino
+        time.sleep(1)
         
-        # Example: Test continuous rotation
-        print("=== Continuous Rotation Test ===")
-        tester.test_continuous_rotation(channel=0, duration=1)
+        print("\n" + "="*60)
+        print("SERIAL CONNECTION DIAGNOSTICS")
+        print("="*60)
+        print(f"Port: {tester.port}")
+        print(f"Baud Rate: {tester.baud}")
+        print("-"*60)
         
-        # Example: Test speed ramp
-        print("=== Speed Ramp Test ===")
-        tester.test_speed_ramp(channel=0, min_speed=-200, max_speed=200, step=50, duration=0.3)
+        # Clear buffer and read startup messages
+        tester.ser.reset_input_buffer()
+        time.sleep(0.5)
         
-        print("\nAll tests completed!")
+        print("Reading startup messages from Arduino...")
+        startup_msg = ""
+        if tester.ser.in_waiting > 0:
+            startup_msg = tester.ser.read(tester.ser.in_waiting).decode('utf-8', errors='ignore')
+            print(f"✓ Received {len(startup_msg)} bytes")
+            print(f"  Content:\n{startup_msg}")
+            
+            if "Servo Bonnet" in startup_msg or "Directional Controller" in startup_msg:
+                print("✓ CONFIRMED: Servo Bonnet sketch detected!")
+            else:
+                print("⚠ WARNING: Unexpected response - may not be Servo Bonnet sketch")
+        else:
+            print("⚠ No startup message received")
+        
+        # Test echo with a simple command
+        print("-"*60)
+        print("Testing serial communication with 'stop' command...")
+        response = tester.send_command("stop", debug=True)
+        
+        if response and len(response) > 0:
+            print("✓ CONFIRMED: Serial communication is WORKING!")
+        else:
+            print("✗ ERROR: No response to 'stop' command - communication may be broken")
+            print("Troubleshooting:")
+            print("  1. Check USB cable is plugged in")
+            print("  2. Verify correct COM port (currently: {})".format(tester.port))
+            print("  3. Verify correct sketch is uploaded")
+            print("  4. Try: arduino/servo_bonnet_sketch/servo_bonnet_sketch.ino")
+            print("  5. Restart Arduino IDE and Arduino board")
+            return
+        
+        print("="*60)
+        print("✓ ALL DIAGNOSTICS PASSED - Ready for testing")
+        print("="*60 + "\n")
+        
+        # Run the directional test
+        tester.test_directions(forward_time=5, backward_time=5)
         
     except KeyboardInterrupt:
         print("\n\nTest interrupted by user")
-        tester.stop_all_servos()
+        tester.stop()
     finally:
         tester.disconnect()
 

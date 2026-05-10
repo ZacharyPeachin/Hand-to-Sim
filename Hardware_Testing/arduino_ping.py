@@ -68,11 +68,20 @@ def ping_arduino(port=None, baud=9600, timeout=2):
         ser.reset_input_buffer()
         
         # Read the startup message
-        print("\nInitial message from Arduino:")
-        while ser.in_waiting > 0:
+        print("\nWaiting for Arduino response...")
+        timeout_counter = 0
+        startup_received = False
+        
+        while ser.in_waiting > 0 and timeout_counter < 10:
             line = ser.readline().decode('utf-8', errors='ignore').strip()
             if line:
                 print(f"  {line}")
+                startup_received = True
+            timeout_counter += 1
+        
+        if not startup_received:
+            print("⚠ Warning: No startup message from Arduino")
+            print("Checking if Arduino is responsive...")
         
         # Send ping
         print("\nSending 'ping' command...")
@@ -82,18 +91,27 @@ def ping_arduino(port=None, baud=9600, timeout=2):
         time.sleep(0.5)
         
         # Read response
-        response = ser.readline().decode('utf-8', errors='ignore').strip()
-        if response:
-            print(f"Response: {response}")
+        responses_received = 0
+        while ser.in_waiting > 0:
+            line = ser.readline().decode('utf-8', errors='ignore').strip()
+            if line:
+                print(f"Response: {line}")
+                responses_received += 1
         
-        response = ser.readline().decode('utf-8', errors='ignore').strip()
-        if response:
-            print(f"Response: {response}")
+        if responses_received > 0:
+            print("\n✓ Serial connection confirmed!")
+        else:
+            print("\n✗ ERROR: No response from Arduino!")
+            print("Troubleshooting:")
+            print("  1. Check USB cable is plugged in")
+            print("  2. Verify Arduino sketch is uploaded")
+            print("  3. Try: arduino/basic_connectivity_sketch/basic_connectivity_sketch.ino")
+            print("  4. Restart Arduino IDE and Arduino board")
         
         # Close connection
         ser.close()
         print("\nConnection closed successfully!")
-        return True
+        return responses_received > 0
         
     except serial.SerialException as e:
         print(f"Serial error: {e}")

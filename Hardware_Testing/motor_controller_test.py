@@ -189,8 +189,38 @@ def main():
         return
     
     try:
+        # Check serial connection
+        print("Checking serial connection...")
+        time.sleep(1)
+        
+        if tester.ser.in_waiting > 0:
+            startup_msg = tester.ser.read(tester.ser.in_waiting).decode('utf-8', errors='ignore')
+            print(f"Arduino startup: {startup_msg}")
+            
+            if "Motor Controller" in startup_msg:
+                print("✓ Serial connection confirmed - Motor Controller detected!")
+            else:
+                print("⚠ Warning: Unexpected Arduino response. Check if correct sketch is uploaded.")
+        else:
+            print("⚠ Warning: No response from Arduino. Checking if sketch is running...")
+            # Try sending a test command
+            tester.send_command("motor_stop 9")
+            time.sleep(0.5)
+            if tester.ser.in_waiting > 0:
+                response = tester.ser.read(tester.ser.in_waiting).decode('utf-8', errors='ignore')
+                print(f"Arduino responded: {response}")
+                print("✓ Serial connection confirmed!")
+            else:
+                print("✗ ERROR: No response from Arduino!")
+                print("Troubleshooting:")
+                print("  1. Check USB cable is plugged in")
+                print("  2. Verify correct sketch is uploaded")
+                print("  3. Try: arduino/motor_controller_sketch/motor_controller_sketch.ino")
+                print("  4. Restart Arduino IDE and Arduino board")
+                return
+        
         # Example: Test motor on pin 9 with speed ramp
-        print("=== Speed Ramp Test ===")
+        print("\n=== Speed Ramp Test ===")
         tester.run_speed_ramp_test(motor_pin=9, start=0, end=100, step=20, duration=1)
         
         # Example: Test motor on pins 8 and 9 for direction
