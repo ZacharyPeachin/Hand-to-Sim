@@ -35,15 +35,25 @@ void setup() {
   Serial.println("Channel 0 Connected");
   Serial.println("====================================");
   
+  // Enable internal pull-ups on I2C pins (helps when external pull-ups are missing)
+  pinMode(A4, INPUT_PULLUP); // SDA
+  pinMode(A5, INPUT_PULLUP); // SCL
+
   // Initialize I2C and PWM driver
   Wire.begin();
+  Serial.println("DEBUG: Wire.begin() called");
+  
   pwm.begin();
+  Serial.println("DEBUG: pwm.begin() called - Servo Bonnet should now be initialized");
   
   // Set PWM frequency to 50 Hz (standard servo frequency)
   pwm.setPWMFreq(SERVO_FREQ);
+  Serial.println("DEBUG: PWM frequency set to 50 Hz");
   
   // Initialize servo to STOP
   pwm.setPWM(0, 0, SERVOMID);
+  Serial.print("DEBUG: Initial servo pulse sent - SERVOMID = ");
+  Serial.println(SERVOMID);
   
   Serial.println("\nServo initialized to STOP");
   Serial.println("\nCommands:");
@@ -94,21 +104,32 @@ void loop() {
 void handleForward() {
   // Rotate forward (180 degrees)
   uint16_t pulseLength = map(180, 0, 180, SERVOMIN, SERVOMAX);
+  Serial.print("DEBUG: Forward command - mapping 180° to ticks: ");
+  Serial.println(pulseLength);
   pwm.setPWM(0, 0, pulseLength);
   Serial.println("Servo: FORWARD");
+  Serial.print("DEBUG: Forward setPWM complete, ticks sent: ");
+  Serial.println(pulseLength);
 }
 
 void handleBackward() {
   // Rotate backward (0 degrees)
   uint16_t pulseLength = map(0, 0, 180, SERVOMIN, SERVOMAX);
+  Serial.print("DEBUG: Backward command - mapping 0° to ticks: ");
+  Serial.println(pulseLength);
   pwm.setPWM(0, 0, pulseLength);
   Serial.println("Servo: BACKWARD");
+  Serial.print("DEBUG: Backward setPWM complete, ticks sent: ");
+  Serial.println(pulseLength);
 }
 
 void handleStop() {
   // Stop servo (90 degrees)
+  Serial.print("DEBUG: Stop command - setting to SERVOMID ticks: ");
+  Serial.println(SERVOMID);
   pwm.setPWM(0, 0, SERVOMID);
   Serial.println("Servo: STOP");
+  Serial.println("DEBUG: Stop setPWM complete");
 }
 
 void handleSpeed(String command) {
@@ -126,10 +147,15 @@ void handleSpeed(String command) {
   // Map speed to servo angle: 90 (stop) + speedPercent = forward direction
   int servoAngle = 90 + speedPercent;
   uint16_t pulseLength = map(servoAngle, 0, 180, SERVOMIN, SERVOMAX);
+  Serial.print("DEBUG: Speed command - angle: ");
+  Serial.print(servoAngle);
+  Serial.print("° → ticks: ");
+  Serial.println(pulseLength);
   pwm.setPWM(0, 0, pulseLength);
   
   Serial.print("Servo speed: ");
   Serial.println(speedPercent);
+  Serial.println("DEBUG: Speed setPWM complete");
 }
 
 void runQuickTest() {

@@ -16,33 +16,39 @@ void setup() {
   Serial.println("I2C DIAGNOSTIC SKETCH");
   Serial.println("====================================\n");
   
+  // Enable internal pull-ups on I2C pins (helps when external pull-ups are missing)
+  pinMode(A4, INPUT_PULLUP); // SDA
+  pinMode(A5, INPUT_PULLUP); // SCL
+
   // Initialize I2C
   Wire.begin();
   Serial.println("I2C initialized on pins A4 (SDA), A5 (SCL)");
-  
+
   // Scan for I2C devices
   Serial.println("\nScanning for I2C devices...");
   byte deviceCount = 0;
-  
+  bool bonnetFound = false;
+
   for (byte address = 1; address < 127; address++) {
     Wire.beginTransmission(address);
     byte error = Wire.endTransmission();
-    
+
     if (error == 0) {
       Serial.print("✓ Found device at address 0x");
       Serial.println(address, HEX);
       deviceCount++;
-      
+
       // Check if this is the Servo Bonnet (should be at 0x40)
       if (address == 0x40) {
-        Serial.println("  → This is the Servo Bonnet (PCA9685)!");
+        Serial.println("  → This is likely the Servo Bonnet (PCA9685)!");
+        bonnetFound = true;
       }
     }
   }
-  
+
   Serial.print("\nTotal devices found: ");
   Serial.println(deviceCount);
-  
+
   if (deviceCount == 0) {
     Serial.println("\n✗ ERROR: No I2C devices found!");
     Serial.println("Troubleshooting:");
@@ -52,30 +58,30 @@ void setup() {
     Serial.println("  4. Try 4.7kΩ pull-up resistors on SDA/SCL");
     Serial.println("  5. Check for loose connectors");
   }
-  
-  // Try to initialize Servo Bonnet
+
+  // Try to initialize Servo Bonnet only if address was found
   Serial.println("\n====================================");
   Serial.println("Attempting to initialize Servo Bonnet...");
-  
-  if (pwm.begin()) {
-    Serial.println("✓ Servo Bonnet initialized successfully!");
-    Serial.println("✓ I2C communication is working!");
-    
+
+  if (bonnetFound) {
+    pwm.begin();
+    Serial.println("✓ Servo Bonnet initialized (pwm.begin() called)");
+    Serial.println("✓ I2C communication appears to be working");
+
     // Set frequency
     pwm.setPWMFreq(50);
     Serial.println("✓ PWM frequency set to 50 Hz");
-    
-    // Try to set a test pulse on channel 0
+
+    // Try to set a test pulse on channel 0 (use safe mid-range ticks)
     Serial.println("\nTesting servo output on Channel 0...");
-    pwm.setPWM(0, 0, 1500);  // Mid-point pulse
-    Serial.println("✓ Pulse sent to Channel 0 (1500 ticks)");
+    pwm.setPWM(0, 0, 2048);  // Mid-point pulse (approx)
+    Serial.println("✓ Pulse sent to Channel 0 (2048 ticks)");
     Serial.println("If servo doesn't move, check:");
     Serial.println("  1. Servo connector fully inserted in Channel 0");
     Serial.println("  2. Servo power connector (external 5V supply)");
     Serial.println("  3. Servo signal cable orientation");
-    
   } else {
-    Serial.println("✗ Failed to initialize Servo Bonnet!");
+    Serial.println("✗ Failed to initialize Servo Bonnet because device not found on I2C");
     Serial.println("Troubleshooting:");
     Serial.println("  1. Check I2C wiring (SDA/SCL)");
     Serial.println("  2. Verify Servo Bonnet is powered");
